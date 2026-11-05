@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {places} from '../shared/places.js';
+import {pickPlaces,makeOfflineTrail,initialProgress,markArrived,completeStop,calculateXP,validateAIContent,mapsUrl} from '../shared/trails.js';
+const options={city:'Ambala',interest:'History',hours:4,budget:1000};
+test('catalog contains twelve traced destinations',()=>{assert.ok(places.length>=10);assert.ok(places.every(p=>p.source.startsWith('https://haryanatourism.gov.in/')&&p.options.length===4));});
+test('filter stays within requested city and has 2-4 stops',()=>{const p=pickPlaces(options);assert.ok(p.length>=2&&p.length<=4);assert.ok(p.every(x=>x.city==='Ambala'));});
+test('reject invalid time, budget and unsupported city',()=>{assert.throws(()=>pickPlaces({...options,hours:1}));assert.throws(()=>pickPlaces({...options,city:'Delhi'}));assert.throws(()=>pickPlaces({...options,budget:-10}));});
+test('real quiz flow is sequential and requires arrival',()=>{let t=makeOfflineTrail(options);let p=initialProgress(t);let first=t.stops[0];assert.equal(completeStop(p,t,0,first.answer).correct,false);p=markArrived(p,0);assert.equal(completeStop(p,t,0,(first.answer+1)%4).correct,false);p=completeStop(p,t,0,first.answer).progress;assert.equal(p.completed.length,1);assert.equal(completeStop(p,t,0,first.answer).correct,false);});
+test('XP is only earned once for identical records',()=>{let t=makeOfflineTrail(options);let p=initialProgress(t);for(let i=0;i<t.stops.length;i++){p=markArrived(p,i);p=completeStop(p,t,i,t.stops[i].answer).progress;}assert.equal(calculateXP([{trail:t,progress:p},{trail:t,progress:p}]).xp,t.stops.length*50+100);});
+test('AI response cannot introduce unapproved IDs',()=>{const selected=pickPlaces(options),raw={title:'Adventure',description:'Valid',stops:selected.map(p=>({placeId:p.id,clue:'A mystery clue in the real location.',question:'What is this place?',options:['A','B','C','D'],answer:0}))};assert.equal(validateAIContent(raw,selected).stops.length,selected.length);raw.stops[0].placeId='invented';assert.throws(()=>validateAIContent(raw,selected));});
+test('Google Maps links properly encode location',()=>{assert.ok(mapsUrl(places[0]).includes('google.com/maps/search'));assert.ok(!mapsUrl(places[0]).includes(' '));});
