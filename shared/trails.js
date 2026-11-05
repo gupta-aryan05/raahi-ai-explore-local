@@ -5,7 +5,7 @@ export function mapsUrl(p){return `https://www.google.com/maps/search/?api=1&que
 export function directionsUrl(stops){return stops.length?`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stops.at(-1).name+', '+stops.at(-1).address)}${stops.length>1?'&waypoints='+encodeURIComponent(stops.slice(0,-1).map(p=>p.name+', '+p.address).join('|')):''}`:'#';}
 export function pickPlaces(input){
  const {city,interest='All',hours=4,budget=500}=input;
- if(!['Ambala','Kurukshetra','Panchkula'].includes(city)) throw new Error('Choose a supported city.');
+ if(![...new Set(places.map(p=>p.city))].includes(city)) throw new Error('Choose a supported city.');
  if(!Number.isFinite(+hours)||+hours<2||+hours>12) throw new Error('Time must be between 2 and 12 hours.');
  if(!Number.isFinite(+budget)||+budget<0||+budget>100000) throw new Error('Enter a valid budget.');
  let list=places.filter(p=>p.city===city);

@@ -1,36 +1,798 @@
-import React,{useEffect,useState} from 'react';
-import {createRoot} from 'react-dom/client';
-import {BrowserRouter,Link,NavLink,useNavigate,useParams,Routes,Route} from 'react-router-dom';
-import {Compass,ArrowUpRight,ArrowRight,MapPin,Sparkles,ArrowLeft,Clock3,Wallet,Search,Filter,ExternalLink,BookOpen,ShieldCheck,ChevronRight,Check,Lock,Medal,Trophy,Send,RotateCcw,Menu,X,AlertCircle,Route as RouteIcon,Flag,Map,Landmark,Leaf,Camera,Globe2} from 'lucide-react';
-import {places,cities} from '../shared/places.js';
-import {getPlace,mapsUrl,directionsUrl,makeOfflineTrail,initialProgress,markArrived,completeStop,calculateXP} from '../shared/trails.js';
+import React, { useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  BrowserRouter,
+  Link,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  ChevronDown,
+  Compass,
+  ExternalLink,
+  Heart,
+  Landmark,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Search,
+  Sparkles,
+  Trophy,
+  UtensilsCrossed,
+  Wallet,
+  X,
+  Clock3,
+  Route as RouteIcon,
+  BadgeCheck,
+  RefreshCw,
+  Ticket,
+  Star,
+} from 'lucide-react';
+import { places, cities } from '../shared/places.js';
+import { foods } from '../shared/food.js';
+import { calculateBudget } from '../shared/budget.js';
+import {
+  calculateXP,
+  completeStop,
+  directionsUrl,
+  getPlace,
+  initialProgress,
+  makeOfflineTrail,
+  mapsUrl,
+  markArrived,
+} from '../shared/trails.js';
 import './style.css';
 
-type Place=typeof places[number];
-type Stop={placeId:string;clue:string;question:string;options:string[];answer:number};
-type Trail={id:string;city:string;interest:string;hours:number;budget:number;mode:'ai'|'offline';title:string;description:string;stops:Stop[];createdAt:number;notice?:string};
-type Progress={trailId:string;completed:number[];arrived:number[];finished:boolean};
-type RecordItem={trail:Trail;progress:Progress};
-const STORAGE='raahi-v1-records';
-function loadRecords():RecordItem[]{try{const data=JSON.parse(localStorage.getItem(STORAGE)||'[]');return Array.isArray(data)?data.filter((r:any)=>r?.trail?.stops&&r?.progress?.completed):[];}catch{return [];}}
-function useRecords(){const [records,setRecords]=useState<RecordItem[]>(loadRecords);const update=(r:RecordItem)=>setRecords(old=>{const updated=[r,...old.filter(i=>i.trail.id!==r.trail.id)].slice(0,40);localStorage.setItem(STORAGE,JSON.stringify(updated));return updated;});return {records,update};}
-const pics:Record<string,string>={hero:'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=1800&q=80',arch:'https://images.unsplash.com/photo-1606293926075-69a00dbfde81?auto=format&fit=crop&w=900&q=80',temple:'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=80',water:'https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&w=900&q=80',garden:'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80',museum:'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=900&q=80',stone:'https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=900&q=80',tree:'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=900&q=80'};
-// Images are illustrative stock imagery, not claimed to depict specific listed destinations.
-function Image({item,wide=false}: {item:Place,wide?:boolean}){return <div className={'photo '+(wide?'wide':'')} style={{backgroundImage:`linear-gradient(180deg,transparent 45%,rgba(11,16,20,.66)),url("${pics[item.imageKey]||pics.arch}")`}}><span className="photo-note">Illustrative image</span></div>}
-function Logo(){return <Link to="/" className="logo"><span className="logo-icon"><Compass size={21}/></span><span>raahi<span className="logo-dot">.</span></span></Link>}
-function Layout({children,records}:{children:React.ReactNode;records:RecordItem[]}){const [menu,setMenu]=useState(false);const xp=calculateXP(records).xp;return <><header className="header"><div className="nav-shell container"><Logo/><nav className={menu?'navigation open':'navigation'}><NavLink onClick={()=>setMenu(false)} to="/">Home</NavLink><NavLink onClick={()=>setMenu(false)} to="/discover">Discover</NavLink><NavLink onClick={()=>setMenu(false)} to="/plan">Mystery Trails</NavLink><NavLink onClick={()=>setMenu(false)} to="/passport">Passport</NavLink></nav><div className="nav-right"><span className="xp-chip"><Sparkles size={14}/>{xp} XP</span><Link to="/plan" className="btn btn-small btn-primary nav-explore">Start exploring <ArrowUpRight size={15}/></Link><button className="menu-button" aria-label="Toggle menu" onClick={()=>setMenu(x=>!x)}>{menu?<X/>:<Menu/>}</button></div></div></header>{children}<footer className="footer"><div className="container footer-inner"><Logo/><span>Go beyond the obvious. Discover what’s local.</span><span>Built for Explore Local · Haryana, India</span></div></footer></>}
-function Pill({children}:{children:React.ReactNode}){return <span className="pill"><span className="pill-dot"/>{children}</span>}
-function Card({p,index}:{p:Place,index?:number}){return <Link to={'/places/'+p.slug} className="place-card"><Image item={p}/><div className="place-card-body"><div className="place-meta"><span><MapPin size={13}/>{p.city}</span><span>{p.category}</span></div><h3>{p.name}</h3><p>{p.story}</p><div className="card-bottom"><span>{p.hidden?'UNDEREXPLORED PICK':'LOCAL LANDMARK'}</span><span className="round-arrow"><ArrowUpRight size={17}/></span></div></div>{index===0&&<span className="featured-flag">EDITOR'S PICK</span>}</Link>}
-function Home({records}:{records:RecordItem[]}){const latest=records.find(r=>!r.progress.finished);return <main><section className="hero"><div className="hero-image"/><div className="hero-overlay"/><div className="container hero-inner"><Pill>THE ART OF EXPLORING LOCALLY</Pill><div className="hero-copy"><h1>Every place<br/>has a <em>story.</em><br/><span>Find yours.</span></h1><p>Uncover overlooked places. Follow mystery trails. Unlock the stories that maps don't tell you.</p><div className="hero-buttons"><Link to="/plan" className="btn btn-primary">Begin an adventure <ArrowUpRight size={19}/></Link><Link to="/discover" className="btn btn-outline">Explore destinations <ArrowRight size={18}/></Link></div></div><div className="hero-stats"><div><strong>12</strong><span>CURATED PLACES</span></div><div><strong>03</strong><span>LOCAL REGIONS</span></div><div><strong>∞</strong><span>STORIES TO FIND</span></div></div></div><div className="hero-side">BEYOND MAPS · INTO STORIES — 2026</div></section>
-<section className="section container"><div className="section-heading"><div><div className="eyebrow">A DIFFERENT WAY TO TRAVEL</div><h2>Not just places.<br/><em>Adventures waiting.</em></h2></div><p>Turn an ordinary day into a treasure hunt. Your city has more stories than you think.</p></div><div className="feature-grid"><Link className="feature feature-primary" to="/plan"><div className="feature-icon"><RouteIcon/></div><div><span className="feature-number">01 / DISCOVER</span><h3>Mystery Trails</h3><p>Follow handpicked local routes. Solve clues, complete quizzes and unlock your next stop.</p></div><span className="feature-go"><ArrowUpRight/></span></Link><Link className="feature" to="/discover"><div className="feature-icon"><BookOpen/></div><div><span className="feature-number">02 / UNDERSTAND</span><h3>Ask the Place</h3><p>Chat with an AI heritage companion that answers using grounded destination facts.</p></div><span className="feature-go"><ArrowUpRight/></span></Link><Link className="feature" to="/passport"><div className="feature-icon"><Medal/></div><div><span className="feature-number">03 / ACHIEVE</span><h3>Explorer Passport</h3><p>Earn XP, unlock badges and create your own collection of adventures.</p></div><span className="feature-go"><ArrowUpRight/></span></Link></div>{latest&&<div className="resume-banner"><span><Flag size={21}/><span><strong>Your adventure is waiting</strong><small>Continue your {latest.trail.city} trail where you left off.</small></span></span><Link className="btn btn-primary" to={'/trail/'+latest.trail.id}>Resume trail <ArrowRight size={16}/></Link></div>}</section>
-<section className="section explore-section"><div className="container"><div className="section-heading"><div><div className="eyebrow">CURATED FROM HARYANA</div><h2>Hidden in <em>plain sight.</em></h2></div><Link className="text-link" to="/discover">View all places <ArrowUpRight size={17}/></Link></div><div className="card-grid">{[places[6],places[3],places[0]].map((p,i)=><Card key={p.id} p={p} index={i}/>)}</div></div></section><section className="container section last-cta"><Pill>THE NEXT CHAPTER IS YOURS</Pill><h2>Your next story is<br/><em>closer than you think.</em></h2><p>A few hours. A curious mind. A completely different way to see home.</p><Link className="btn btn-primary" to="/plan">Create my mystery trail <ArrowUpRight size={19}/></Link></section></main>}
-function Discover(){const [search,setSearch]=useState(''),[city,setCity]=useState('All'),[category,setCategory]=useState('All'),[hidden,setHidden]=useState(false);const filtered=places.filter(p=>(city==='All'||p.city===city)&&(category==='All'||p.category===category)&&(!hidden||p.hidden)&&(`${p.name} ${p.story} ${p.city}`.toLowerCase().includes(search.toLowerCase())));return <main className="page container"><div className="page-heading"><Pill>THE LOCAL ATLAS</Pill><h1>Explore the <em>unexplored.</em></h1><p>Real places. Real heritage. Stories worth sharing. Curated from Haryana Tourism information.</p></div><div className="filter-bar"><label className="search-wrap"><Search size={19}/><input aria-label="Search destinations" placeholder="Search places or stories..." value={search} onChange={e=>setSearch(e.target.value)}/></label><label><Filter size={15}/><select aria-label="Filter city" value={city} onChange={e=>setCity(e.target.value)}><option>All</option>{cities.map(c=><option key={c}>{c}</option>)}</select></label><label><select aria-label="Filter category" value={category} onChange={e=>setCategory(e.target.value)}><option>All</option>{[...new Set(places.map(p=>p.category))].map(c=><option key={c}>{c}</option>)}</select></label><label className="check-filter"><input type="checkbox" checked={hidden} onChange={e=>setHidden(e.target.checked)}/> Hidden gems only</label></div><div className="result-line">Showing <strong>{filtered.length}</strong> curated destinations <span>• Visit hours and fees must be checked independently.</span></div><div className="card-grid">{filtered.map((p,i)=><Card key={p.id} p={p} index={i}/>)}</div>{!filtered.length&&<div className="empty"><Search/><h3>No matches found</h3><p>Try a different city or remove a filter.</p><button className="btn btn-outline" onClick={()=>{setSearch('');setCity('All');setCategory('All');setHidden(false)}}>Clear filters</button></div>}</main>}
-function Chat({p}:{p:Place}){const [q,setQ]=useState(''),[messages,setMessages]=useState<{who:'user'|'ai';text:string}[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');async function ask(question:string){if(!question.trim()||busy)return;setError('');setMessages(old=>[...old,{who:'user',text:question}]);setQ('');setBusy(true);try{const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placeId:p.id,question})});const data=await res.json();if(!res.ok)throw new Error(data.error||'AI unavailable');setMessages(old=>[...old,{who:'ai',text:data.answer}]);}catch(e){setError((e as Error).message);}finally{setBusy(false)}}return <div className="chat"><div className="chat-top"><span className="online-dot"/> <strong>Ask the Place</strong><span>· Powered by Gemini when configured</span></div><div className="chat-history" aria-live="polite">{!messages.length&&<div className="chat-welcome"><Sparkles size={24}/><h3>Curious about {p.name}?</h3><p>Ask about the history, culture, or stories behind this place.</p><div className="suggestion-list">{['Why is this place important?','What makes this place special?','Is it suitable for a short visit?'].map(t=><button key={t} onClick={()=>ask(t)}>{t}<ArrowUpRight size={13}/></button>)}</div></div>}{messages.map((m,i)=><div className={'bubble '+m.who} key={i}>{m.text}</div>)}{busy&&<div className="bubble ai">Thinking about this place…</div>}</div>{error&&<div role="alert" className="error-message"><AlertCircle size={16}/>{error} <button onClick={()=>setError('')}>Dismiss</button></div>}<form className="chat-compose" onSubmit={e=>{e.preventDefault();void ask(q)}}><input aria-label="Ask a place question" value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask anything about this place..." maxLength={700}/><button disabled={busy||!q.trim()} aria-label="Send question" className="send-btn"><Send size={18}/></button></form><small className="chat-disclaimer">Grounded in available source notes; AI may still make mistakes. Verify important details.</small></div>}
-function PlaceDetail(){const {slug}=useParams(),p=places.find(x=>x.slug===slug);if(!p)return <NotFound/>;return <main className="page container"><Link className="back-link" to="/discover"><ArrowLeft size={16}/> All destinations</Link><div className="detail-head"><div><Pill>{p.city.toUpperCase()} · {p.category.toUpperCase()}</Pill><h1>{p.name}</h1><p>{p.story}</p></div><a href={mapsUrl(p)} target="_blank" rel="noopener noreferrer" className="btn btn-primary">Open in Google Maps <ExternalLink size={17}/></a></div><Image item={p} wide/><div className="detail-grid"><section className="detail-copy"><div className="eyebrow">THE STORY</div><h2>Beyond the <em>landmark.</em></h2><p>{p.fact}</p><div className="fact-panel"><ShieldCheck size={22}/><div><strong>Verified source information</strong><p>Destination facts are summarized from Haryana Tourism. Exact opening hours, entry fees and access conditions have not been independently verified.</p><a href={p.source} target="_blank" rel="noopener noreferrer">Official destination source <ArrowUpRight size={14}/></a></div></div><div className="info-tiles"><div><MapPin/><small>LOCATION</small><strong>{p.address}</strong></div><div><Clock3/><small>VISIT PLANNING</small><strong>Allow ~{p.visit} min on-site*</strong></div></div><p className="note">*Illustrative planning allowance, not an official visiting duration.</p></section><Chat key={p.id} p={p}/></div></main>}
-function Plan({records,update}:{records:RecordItem[];update:(r:RecordItem)=>void}){const nav=useNavigate();const [city,setCity]=useState('Ambala'),[interest,setInterest]=useState('History'),[hours,setHours]=useState(4),[budget,setBudget]=useState(1000),[busy,setBusy]=useState(false),[error,setError]=useState('');const available=places.filter(p=>p.city===city);async function create(e:React.FormEvent){e.preventDefault();setError('');setBusy(true);const params={city,interest,hours,budget};try{const res=await fetch('/api/trails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)});const t=await res.json();if(!res.ok)throw new Error(t.error||'Unable to create trail.');const trail=t as Trail;update({trail,progress:initialProgress(trail)});nav('/trail/'+trail.id);}catch(e){try{const trail=makeOfflineTrail(params) as Trail;trail.notice='Backend not reachable; created a clearly labeled offline curated trail.';update({trail,progress:initialProgress(trail)});nav('/trail/'+trail.id);}catch{setError((e as Error).message)}}finally{setBusy(false)}}return <main className="page container plan-page"><div className="page-heading"><Pill>YOUR ADVENTURE STARTS HERE</Pill><h1>Make the ordinary <em>extraordinary.</em></h1><p>A little curiosity is all you need. Build a local quest around what inspires you.</p></div><div className="plan-grid"><form className="plan-form" onSubmit={create}><div className="form-top"><div className="eyebrow">01 / YOUR PREFERENCES</div><h2>Design your escape.</h2><p>Tell us a little about your day. We'll curate a trail in one local region.</p></div><label>Where are you starting?<select value={city} onChange={e=>setCity(e.target.value)}>{cities.map(c=><option key={c}>{c}</option>)}</select></label><label>What speaks to you?<div className="interest-options">{['History','Spiritual','Culture','Nature','Architecture','All'].map(i=><button type="button" key={i} className={interest===i?'interest active':'interest'} onClick={()=>setInterest(i)}>{i==='All'?'Surprise me':i}</button>)}</div></label><label>How much time do you have?<select value={hours} onChange={e=>setHours(Number(e.target.value))}><option value={3}>3 hours — A quick escape</option><option value={4}>4 hours — Half-day wander</option><option value={6}>6 hours — Deeper discovery</option><option value={8}>8 hours — Full-day adventure</option></select></label><label>Your approximate total budget (₹)<input type="number" min="0" max="100000" value={budget} onChange={e=>setBudget(Number(e.target.value))} required/></label><p className="budget-note"><AlertCircle size={15}/> Cost estimates are not live. Actual travel, meals and admission may exceed your budget.</p>{error&&<p className="error-message" role="alert">{error}</p>}<button className="btn btn-primary submit-btn" disabled={busy}>{busy?'Creating your trail…':'Generate my mystery trail'}<Sparkles size={19}/></button></form><div className="plan-aside"><div className="aside-image" style={{backgroundImage:`linear-gradient(180deg,transparent,rgba(11,16,20,.95)),url(${pics.hero})`}}><div className="aside-image-content"><span className="eyebrow">YOUR NEXT STORY</span><h3>{city} is calling.</h3><p>{available.length} curated landmarks • {available.filter(p=>p.hidden).length} lesser-known picks</p></div></div><div className="how"><h3>How your quest works</h3>{[['01','Discover','Receive a realistic set of places in one region.'],['02','Uncover','Find each stop and decode its story.'],['03','Unlock','Answer a quiz and earn explorer points.']].map(([n,h,d])=><div className="how-step" key={n}><strong>{n}</strong><div><b>{h}</b><p>{d}</p></div></div>)}</div></div></div>{records.length>0&&<div className="your-trails"><h2>Your recent adventures</h2><div className="recent-list">{records.slice(0,4).map(r=><Link to={'/trail/'+r.trail.id} key={r.trail.id}><span><RouteIcon size={19}/>{r.trail.title}</span><span>{r.progress.completed.length}/{r.trail.stops.length} stops <ChevronRight size={17}/></span></Link>)}</div></div>}</main>}
-function TrailView({records,update}:{records:RecordItem[];update:(r:RecordItem)=>void}){const {id}=useParams(),navigate=useNavigate();const record=records.find(x=>x.trail.id===id);const [choice,setChoice]=useState<number|null>(null),[error,setError]=useState('');useEffect(()=>{setChoice(null);setError('')},[record?.progress.completed.length,id]);if(!record)return <main className="page container"><div className="empty"><h2>Trail not found</h2><p>This trail is not in this browser's saved adventures.</p><Link to="/plan" className="btn btn-primary">Create a new trail</Link></div></main>;const {trail,progress}=record;const active=progress.completed.length;const stop=trail.stops[active],place=stop&&getPlace(stop.placeId),done=progress.finished;const all=trail.stops.map(s=>getPlace(s.placeId)).filter(Boolean) as Place[];function arrive(){update({trail,progress:markArrived(progress,active)})}function submit(){if(choice===null)return;const out=completeStop(progress,trail,active,choice);if(out.correct){update({trail,progress:out.progress});setChoice(null);setError('');}else setError(out.reason||'Try again.')}function restart(){if(confirm('Restart this trail? Your earned progress for this trail will reset.')){update({trail,progress:initialProgress(trail)});setChoice(null);setError('')}}return <main className="page container trail-page"><Link className="back-link" to="/plan"><ArrowLeft size={16}/> Trail planner</Link><div className="trail-top"><div><Pill>{trail.mode==='ai'?'AI-GENERATED MYSTERY TRAIL':'CURATED OFFLINE TRAIL'}</Pill><h1>{trail.title}</h1><p>{trail.description}</p></div><button className="reset" onClick={restart}><RotateCcw size={16}/> Restart</button></div>{trail.notice&&<div role="status" className="info-alert"><AlertCircle size={18}/>{trail.notice}</div>}<div className="trail-facts"><span><MapPin size={16}/>{trail.city}</span><span><Clock3 size={16}/>{trail.hours} hours available</span><span><Wallet size={16}/>₹{trail.budget.toLocaleString('en-IN')} budget guidance</span><a href={directionsUrl(all)} target="_blank" rel="noopener noreferrer"><Map size={16}/> Full route <ExternalLink size={13}/></a></div><div className="progress-track"><div style={{width:`${progress.completed.length/trail.stops.length*100}%`}}/></div><div className="progress-caption"><span>{progress.completed.length} of {trail.stops.length} stops completed</span><strong>{progress.completed.length*50+(done?100:0)} XP earned on this trail</strong></div>{done?<div className="completion"><Trophy size={60}/><div className="eyebrow">QUEST COMPLETE</div><h2>You followed the <em>story.</em></h2><p>You've completed every stop and earned {trail.stops.length*50+100} XP. Your Explorer Passport has been updated.</p><div className="completion-buttons"><Link to="/passport" className="btn btn-primary">View my passport <ArrowUpRight size={17}/></Link><Link to="/plan" className="btn btn-outline">Explore another trail</Link></div></div>:place&&<div className="mission-layout"><div className="mission-main"><div className="mission-image"><Image item={place} wide/><span className="mission-count">MISSION {String(active+1).padStart(2,'0')}</span></div><div className="mission-detail"><div className="eyebrow">YOUR NEXT DESTINATION</div><h2>{place.name}</h2><p className="mission-address"><MapPin size={17}/>{place.address}</p><div className="clue-panel"><span><Sparkles size={17}/> {trail.mode==='ai'?'AI MYSTERY CLUE':'CURATED CLUE'}</span><p>“{stop.clue}”</p></div><div className="mission-actions"><a className="btn btn-primary" target="_blank" rel="noopener noreferrer" href={mapsUrl(place)}>Navigate to this stop <ExternalLink size={17}/></a><Link className="btn btn-outline" to={'/places/'+place.slug}>Discover the story <ArrowRight size={17}/></Link></div>{!progress.arrived.includes(active)?<div className="arrival-panel"><p>Reached this destination? Confirm manually to unlock its question.</p><button className="btn btn-muted" onClick={arrive}><Flag size={17}/> I have arrived (self-confirmed)</button><small>Not GPS verified. You are responsible for confirming your own arrival.</small></div>:<div className="quiz"><span className="eyebrow">UNLOCK YOUR NEXT CHAPTER</span><h3>{stop.question}</h3><div className="quiz-options">{stop.options.map((o,i)=><button key={i} className={choice===i?'selected':''} onClick={()=>{setChoice(i);setError('')}}><span>{'ABCD'[i]}</span>{o}{choice===i&&<Check size={17}/>}</button>)}</div>{error&&<p role="alert" className="error-message">{error}</p>}<button disabled={choice===null} className="btn btn-primary" onClick={submit}>Submit answer & earn 50 XP <ArrowRight size={17}/></button></div>}</div></div><aside className="mission-sidebar"><div className="side-card"><div className="eyebrow">YOUR JOURNEY</div><h3>Trail milestones</h3>{trail.stops.map((s,i)=>{const p=getPlace(s.placeId);return <div className={'milestone '+(i===active?'current':'')} key={s.placeId}><span className={'milestone-icon '+(progress.completed.includes(i)?'complete':'')}>{progress.completed.includes(i)?<Check size={15}/>:i>active?<Lock size={15}/>:String(i+1).padStart(2,'0')}</span><div><strong>{i>active?'Mystery destination':p?.name}</strong><small>{progress.completed.includes(i)?'Completed · +50 XP':i===active?'Current mission':'Locked · complete previous stop'}</small></div></div>})}</div><div className="side-note"><ShieldCheck size={20}/><p>Places are sourced from Haryana Tourism. Travel sequence is a planning suggestion, not a live optimized route. Verify access and costs independently.</p></div></aside></div>}</main>}
-function Passport({records}:{records:RecordItem[]}){const {xp,complete,stops}=calculateXP(records);const badges=[{name:'First Steps',desc:'Complete your first destination',threshold:50,icon:Flag},{name:'Heritage Hunter',desc:'Complete three destination stops',threshold:150,icon:Landmark},{name:'Mystery Explorer',desc:'Complete one full mystery trail',threshold:-1,icon:Compass},{name:'Local Legend',desc:'Earn 500 explorer points',threshold:500,icon:Trophy}];return <main className="page container passport-page"><div className="page-heading"><Pill>YOUR EXPLORER IDENTITY</Pill><h1>Stories collected.<br/><em>Journeys remembered.</em></h1><p>Every place changes how we see the world. Here's what you've unlocked.</p></div><div className="passport-hero"><div><span className="eyebrow">THE EXPLORER PASSPORT</span><h2>RAAHI <em>Explorer</em></h2><p>YOUR JOURNEY IS YOUR STORY</p><div className="passport-stamp"><Compass size={47}/><span>LOCAL EXPLORER</span></div></div><div className="passport-score"><span>TOTAL EXPERIENCE</span><strong>{xp.toLocaleString('en-IN')}<em> XP</em></strong><div className="score-stats"><div>{stops}<small>STOPS</small></div><div>{complete}<small>TRAILS</small></div></div></div></div><div className="section-heading badges-title"><div><div className="eyebrow">PROOF OF CURIOSITY</div><h2>Your <em>achievements.</em></h2></div><span>{badges.filter(b=>b.threshold===-1?complete>0:xp>=b.threshold).length} / {badges.length} unlocked</span></div><div className="badges-grid">{badges.map(b=>{const earned=b.threshold===-1?complete>0:xp>=b.threshold;return <div className={'badge-card '+(earned?'earned':'locked')} key={b.name}><div className="badge-icon">{earned?<b.icon size={35}/>:<Lock size={26}/>}</div><h3>{b.name}</h3><p>{b.desc}</p><small>{earned?'UNLOCKED':'NOT YET UNLOCKED'}</small></div>})}</div><div className="section-heading history-head"><div><div className="eyebrow">YOUR STORY SO FAR</div><h2>Adventure <em>history.</em></h2></div></div>{records.length?<div className="recent-list">{records.map(r=><Link key={r.trail.id} to={'/trail/'+r.trail.id}><span><RouteIcon size={20}/><span>{r.trail.title}<small>{new Date(r.trail.createdAt).toLocaleDateString('en-IN')} · {r.trail.mode==='ai'?'AI':'Offline'} trail</small></span></span><span>{r.progress.completed.length}/{r.trail.stops.length} stops <ChevronRight size={17}/></span></Link>)}</div>:<div className="empty"><Compass size={40}/><h3>Your story starts now.</h3><p>No adventures completed yet. Your first local quest is one click away.</p><Link to="/plan" className="btn btn-primary">Start first adventure <ArrowRight size={16}/></Link></div>}</main>}
-function NotFound(){return <main className="page container"><div className="empty"><h1>404</h1><h2>This trail leads nowhere.</h2><p>Let's find a different path.</p><Link to="/" className="btn btn-primary">Back home <ArrowRight size={16}/></Link></div></main>}
-function App(){const {records,update}=useRecords();return <BrowserRouter><Layout records={records}><Routes><Route path="/" element={<Home records={records}/>}/><Route path="/discover" element={<Discover/>}/><Route path="/places/:slug" element={<PlaceDetail/>}/><Route path="/plan" element={<Plan records={records} update={update}/>}/><Route path="/trail/:id" element={<TrailView records={records} update={update}/>}/><Route path="/passport" element={<Passport records={records}/>}/><Route path="*" element={<NotFound/>}/></Routes></Layout></BrowserRouter>}
+type Place = (typeof places)[number];
+type Food = (typeof foods)[number];
+type Stop = { placeId: string; clue: string; question: string; options: string[]; answer: number };
+type Trail = {
+  id: string;
+  city: string;
+  interest: string;
+  hours: number;
+  budget: number;
+  mode: 'ai' | 'offline';
+  title: string;
+  description: string;
+  stops: Stop[];
+  createdAt: number;
+  notice?: string;
+};
+type Progress = { trailId: string; completed: number[]; arrived: number[]; finished: boolean };
+type RecordItem = { trail: Trail; progress: Progress };
 
-createRoot(document.getElementById('root')!).render(<App/>);
+type Message = { who: 'user' | 'ai'; text: string };
+
+const STORAGE = 'raahi-v1-records';
+const FAV_STORAGE = 'raahi-favorites';
+const FOOD_SAVE_STORAGE = 'raahi-food-saved';
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Spiritual: 'chip chip-orange',
+  Nature: 'chip chip-green',
+  History: 'chip chip-gold',
+  Architecture: 'chip chip-gold',
+  Culture: 'chip chip-peach',
+};
+
+const PLACE_IMAGES: Record<string, { src: string; credit: string }> = {
+  'taj-mahal': { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Taj_Mahal_in_March_2004.jpg?width=1200', credit: 'Wikimedia Commons' },
+  'agra-fort': { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agra_Fort%2C_India.jpg?width=1200', credit: 'Wikimedia Commons' },
+  'hawa-mahal': { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Hawa_Mahal_2011.jpg?width=1200', credit: 'Wikimedia Commons' },
+  'amber-fort': { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Amer_Fort_-_Jaipur.jpg?width=1200', credit: 'Wikimedia Commons' },
+  pinjore: { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Yadavindra_Gardens%2C_Pinjore.jpg?width=1200', credit: 'Wikimedia Commons' },
+  brahma: { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Brahma_Sarovar%2C_Kurukshetra.jpg?width=1200', credit: 'Wikimedia Commons' },
+  jyotisar: { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Jyotisar%2C_Kurukshetra.jpg?width=1200', credit: 'Wikimedia Commons' },
+  sheikh: { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sheikh_Chilli%27s_Tomb%2C_Thanesar.jpg?width=1200', credit: 'Wikimedia Commons' },
+  nada: { src: 'https://commons.wikimedia.org/wiki/Special:FilePath/Gurudwara_Nada_Sahib%2C_Panchkula.jpg?width=1200', credit: 'Wikimedia Commons' },
+};
+
+const FOOD_IMAGES: Record<string, string> = {
+  'haryana-bajra': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80',
+  'haryana-lassi': 'https://images.unsplash.com/photo-1626200419199-391ae4be7a4b?auto=format&fit=crop&w=900&q=80',
+  'panchkula-paratha': 'https://images.unsplash.com/photo-1626074353765-517a681e40be?auto=format&fit=crop&w=900&q=80',
+  'agra-petha': 'https://images.unsplash.com/photo-1605197161470-5f4d098d4e58?auto=format&fit=crop&w=900&q=80',
+  'jaipur-dal-bati': 'https://images.unsplash.com/photo-1666190092159-3171cf0f1c0d?auto=format&fit=crop&w=900&q=80',
+};
+
+function loadRecords(): RecordItem[] {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE) || '[]');
+    return Array.isArray(data) ? data.filter((r: any) => r?.trail?.stops && r?.progress?.completed) : [];
+  } catch {
+    return [];
+  }
+}
+
+function useRecords() {
+  const [records, setRecords] = useState<RecordItem[]>(loadRecords);
+  const update = (record: RecordItem) =>
+    setRecords((old) => {
+      const updated = [record, ...old.filter((r) => r.trail.id !== record.trail.id)].slice(0, 40);
+      localStorage.setItem(STORAGE, JSON.stringify(updated));
+      return updated;
+    });
+  return { records, update };
+}
+
+function useFavorites() {
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FAV_STORAGE) || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const toggle = (id: string) => {
+    setFavorites((old) => {
+      const next = old.includes(id) ? old.filter((item) => item !== id) : [...old, id];
+      localStorage.setItem(FAV_STORAGE, JSON.stringify(next));
+      return next;
+    });
+  };
+  return { favorites, toggle };
+}
+
+function placeImage(place: Place) {
+  return PLACE_IMAGES[place.id];
+}
+
+function formatCategory(place: Place) {
+  return place.hidden ? 'Hidden Gem' : place.category;
+}
+
+function Logo() {
+  return (
+    <Link to="/" className="logo" aria-label="RAAHI home">
+      <span className="logo-icon"><Landmark size={18} /></span>
+      <span>
+        <strong>RAAHI</strong>
+        <small>Beyond Maps. Into Stories.</small>
+      </span>
+    </Link>
+  );
+}
+
+function Layout({ children, records }: { children: React.ReactNode; records: RecordItem[] }) {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const { xp } = calculateXP(records);
+  return (
+    <>
+      <header className="site-header">
+        <div className="container nav-row">
+          <Logo />
+          <nav className={open ? 'main-nav open' : 'main-nav'}>
+            <NavLink to="/" onClick={() => setOpen(false)}>Home</NavLink>
+            <NavLink to="/discover" onClick={() => setOpen(false)}>Explore</NavLink>
+            <NavLink to="/plan" onClick={() => setOpen(false)}>Trip Planner</NavLink>
+            <NavLink to="/food" onClick={() => setOpen(false)}>TasteTrail</NavLink>
+            <NavLink to="/wallet" onClick={() => setOpen(false)}>Wallet</NavLink>
+            <NavLink to="/passport" onClick={() => setOpen(false)}>Passport</NavLink>
+          </nav>
+          <div className="nav-actions">
+            <Link to="/discover" className="icon-btn" aria-label="Search"><Search size={18} /></Link>
+            <Link to="/discover" className="country-pill"><MapPin size={14} /> India <ChevronDown size={14} /></Link>
+            <Link to="/passport" className="xp-pill">{xp} XP</Link>
+            <button className="menu-btn" onClick={() => setOpen((v) => !v)} aria-label="Toggle menu">
+              {open ? <X size={19} /> : <Menu size={19} />}
+            </button>
+          </div>
+        </div>
+      </header>
+      {children}
+      <footer className="site-footer">
+        <div className="container footer-row">
+          <Logo />
+          <p>RAAHI helps you discover local places, food, stories and simple travel plans across India.</p>
+          <span>{location.pathname === '/' ? 'Start with Explore or Trip Planner.' : 'Built for easy local exploration.'}</span>
+        </div>
+      </footer>
+    </>
+  );
+}
+
+function ImageBlock({ place, className = '' }: { place: Place; className?: string }) {
+  const img = placeImage(place);
+  return img ? (
+    <div className={`image-block ${className}`}>
+      <img src={img.src} alt={place.name} loading="lazy" />
+    </div>
+  ) : (
+    <div className={`image-block placeholder ${className}`}>
+      <Landmark size={32} />
+      <span>{place.name}</span>
+      <small>Verified image coming soon</small>
+    </div>
+  );
+}
+
+function PlaceCard({ place, favorites, toggleFavorite }: { place: Place; favorites: string[]; toggleFavorite: (id: string) => void }) {
+  return (
+    <article className="place-card">
+      <div className="card-image-wrap">
+        <ImageBlock place={place} />
+        <button className={favorites.includes(place.id) ? 'fav-btn active' : 'fav-btn'} onClick={() => toggleFavorite(place.id)} aria-label="Save place">
+          <Heart size={18} fill={favorites.includes(place.id) ? 'currentColor' : 'none'} />
+        </button>
+        <span className={CATEGORY_COLORS[place.category] || 'chip chip-gold'}>{formatCategory(place)}</span>
+      </div>
+      <div className="place-card-body">
+        <div className="card-location"><MapPin size={14} /> {place.city}, {place.region}</div>
+        <h3>{place.name}</h3>
+        <p>{place.story}</p>
+        <div className="card-actions-row">
+          <a href={mapsUrl(place)} target="_blank" rel="noreferrer" className="ghost-link">Map</a>
+          <Link to={`/places/${place.slug}`} className="solid-link">Details</Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function Home({ records }: { records: RecordItem[] }) {
+  const { favorites, toggle } = useFavorites();
+  const { xp, complete, stops } = calculateXP(records);
+  const featuredIds = ['taj-mahal', 'hawa-mahal', 'amber-fort', 'brahma', 'pinjore', 'agra-fort'];
+  const featuredPlaces = featuredIds.map((id) => places.find((item) => item.id === id)).filter(Boolean) as Place[];
+  const recent = records[0];
+  return (
+    <main>
+      <section className="hero-v2">
+        <div className="hero-bg" />
+        <div className="hero-overlay" />
+        <div className="container hero-content">
+          <div className="hero-copy">
+            <span className="eyebrow-pill"><Sparkles size={14} /> All-India local exploration</span>
+            <h1>
+              Beyond Maps.
+              <span> Into Stories.</span>
+            </h1>
+            <p>
+              Discover heritage, food, spiritual places and hidden local experiences with simple planning and clear information.
+            </p>
+            <div className="hero-cta-row">
+              <Link className="btn-primary" to="/plan">Plan My Journey <ArrowRight size={17} /></Link>
+              <Link className="btn-secondary" to="/discover">Explore Places</Link>
+            </div>
+            <div className="hero-stats">
+              <div><strong>{places.length}</strong><span>Curated places</span></div>
+              <div><strong>{cities.length}</strong><span>Supported cities</span></div>
+              <div><strong>{foods.length}</strong><span>Food ideas</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="container feature-strip">
+          <Link to="/plan"><Compass size={20} /><span><b>Trip Planner</b><small>Simple AI or offline itinerary</small></span></Link>
+          <Link to="/wallet"><Wallet size={20} /><span><b>RAAHI Wallet</b><small>Budget breakdown</small></span></Link>
+          <Link to="/food"><UtensilsCrossed size={20} /><span><b>TasteTrail</b><small>Regional food guide</small></span></Link>
+          <Link to="/discover"><BookOpen size={20} /><span><b>Stories</b><small>Place details and history</small></span></Link>
+          <Link to="/passport"><Trophy size={20} /><span><b>Passport</b><small>XP and progress</small></span></Link>
+        </div>
+      </section>
+
+      <section className="section-light">
+        <div className="container section-head-row">
+          <div>
+            <span className="eyebrow-text">EXPLORE INDIA</span>
+            <h2>Places that feel clear and easy to explore.</h2>
+          </div>
+          <Link to="/discover" className="text-link">See all destinations <ArrowRight size={15} /></Link>
+        </div>
+        <div className="container card-grid six-grid">
+          {featuredPlaces.map((place) => (
+            <PlaceCard key={place.id} place={place} favorites={favorites} toggleFavorite={toggle} />
+          ))}
+        </div>
+      </section>
+
+      <section className="section-orange">
+        <div className="container two-col-cards">
+          <div className="info-panel warm">
+            <span className="eyebrow-text">WHAT MAKES RAAHI USEFUL</span>
+            <h3>Not too complex. Just practical.</h3>
+            <ul>
+              <li>Pick a city and generate a trail.</li>
+              <li>Open locations in Google Maps.</li>
+              <li>Explore local food and culture suggestions.</li>
+              <li>Track XP in a simple explorer passport.</li>
+            </ul>
+          </div>
+          <div className="info-panel white">
+            <span className="eyebrow-text">CONTINUE YOUR JOURNEY</span>
+            <h3>Everything important in one place.</h3>
+            <div className="quick-links">
+              <Link to="/plan">Start a trail</Link>
+              <Link to="/wallet">Check your budget</Link>
+              <Link to="/food">Browse food ideas</Link>
+              <Link to="/passport">View your progress</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-passport-simple">
+        <div className="container passport-simple-grid">
+          <div className="passport-copy">
+            <span className="eyebrow-text">EXPLORER PASSPORT</span>
+            <h2>Simple travel progress, not a complicated dashboard.</h2>
+            <p>See your XP, completed trails, and saved memories in one clean page.</p>
+            <Link to="/passport" className="btn-primary">Open Passport <ArrowRight size={16} /></Link>
+          </div>
+          <div className="passport-summary-card">
+            <div className="passport-number"><Trophy size={22} /> <strong>{xp}</strong><span>Total XP</span></div>
+            <div className="passport-number"><BadgeCheck size={22} /> <strong>{complete}</strong><span>Trails completed</span></div>
+            <div className="passport-number"><RouteIcon size={22} /> <strong>{stops}</strong><span>Stops unlocked</span></div>
+            {recent ? <div className="passport-recent">Latest trail: <b>{recent.trail.title}</b></div> : <div className="passport-recent">Start your first trail to fill your passport.</div>}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Discover() {
+  const { favorites, toggle } = useFavorites();
+  const params = new URLSearchParams(window.location.search);
+  const [search, setSearch] = useState('');
+  const [city, setCity] = useState('All');
+  const [category, setCategory] = useState('All');
+  const [hidden, setHidden] = useState(params.get('hidden') === '1');
+
+  const filtered = places.filter((p) => {
+    const hit = `${p.name} ${p.city} ${p.region} ${p.story}`.toLowerCase().includes(search.toLowerCase());
+    return hit && (city === 'All' || p.city === city) && (category === 'All' || p.category === category) && (!hidden || p.hidden);
+  });
+
+  return (
+    <main className="page-wrap light-page">
+      <div className="container page-head">
+        <span className="eyebrow-pill small">The local atlas</span>
+        <h1>Explore places across India.</h1>
+        <p>Search by city and category. If a verified photo is unavailable, we keep the place and show a clean placeholder.</p>
+        <div className="filter-row">
+          <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search places or stories" /></label>
+          <select value={city} onChange={(e) => setCity(e.target.value)}><option>All</option>{cities.map((c) => <option key={c}>{c}</option>)}</select>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}><option>All</option>{[...new Set(places.map((p) => p.category))].map((c) => <option key={c}>{c}</option>)}</select>
+          <label className="checkbox-line"><input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Hidden gems only</label>
+        </div>
+      </div>
+      <div className="container card-grid three-grid">
+        {filtered.map((place) => <PlaceCard key={place.id} place={place} favorites={favorites} toggleFavorite={toggle} />)}
+      </div>
+      {!filtered.length && <div className="container empty-box">No destinations match your filters right now.</div>}
+    </main>
+  );
+}
+
+function Chat({ place }: { place: Place }) {
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function ask(text?: string) {
+    const q = (text ?? question).trim();
+    if (!q || busy) return;
+    setBusy(true);
+    setError('');
+    setMessages((m) => [...m, { who: 'user', text: q }]);
+    setQuestion('');
+    try {
+      const res = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placeId: place.id, question: q }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to answer right now.');
+      setMessages((m) => [...m, { who: 'ai', text: data.answer }]);
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="detail-panel">
+      <div className="panel-head"><MessageCircle size={18} /> Ask the Place</div>
+      <div className="suggestions">
+        {['What is special about this place?', 'Tell me the history in simple words.', 'What should I know before visiting?'].map((q) => (
+          <button key={q} onClick={() => ask(q)}>{q}</button>
+        ))}
+      </div>
+      <div className="chat-box">
+        {messages.length === 0 ? <p className="chat-empty">Ask about history, significance, or travel tips. Answers use the verified place context available on the server.</p> : messages.map((m, i) => <div key={i} className={`bubble ${m.who}`}>{m.text}</div>)}
+        {error && <div className="error-box">{error}</div>}
+      </div>
+      <div className="chat-input-row">
+        <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question" />
+        <button onClick={() => ask()} disabled={busy}>{busy ? 'Thinking…' : 'Ask'}</button>
+      </div>
+    </section>
+  );
+}
+
+function PlaceDetail() {
+  const { slug } = useParams();
+  const place = places.find((p) => p.slug === slug);
+  if (!place) return <NotFound />;
+  return (
+    <main className="page-wrap light-page">
+      <div className="container detail-hero-grid">
+        <div>
+          <Link to="/discover" className="back-link"><ArrowLeft size={15} /> Back to explore</Link>
+          <span className={CATEGORY_COLORS[place.category] || 'chip chip-gold'}>{formatCategory(place)}</span>
+          <h1>{place.name}</h1>
+          <p className="lead-copy">{place.story}</p>
+          <div className="detail-meta-list">
+            <div><MapPin size={16} /> {place.address}</div>
+            <div><Clock3 size={16} /> Suggested stop: around {place.visit} minutes</div>
+            <div><Ticket size={16} /> Entry fee / timings: verify on official source</div>
+          </div>
+          <div className="detail-action-row">
+            <a className="btn-primary" href={mapsUrl(place)} target="_blank" rel="noreferrer">Open in Maps</a>
+            <a className="btn-secondary" href={place.source} target="_blank" rel="noreferrer">Official source <ExternalLink size={15} /></a>
+          </div>
+        </div>
+        <ImageBlock place={place} className="detail-image" />
+      </div>
+      <div className="container detail-body-grid">
+        <section className="detail-panel">
+          <div className="panel-head"><BookOpen size={18} /> About this place</div>
+          <p>{place.fact}</p>
+          <div className="simple-facts">
+            <div><strong>City</strong><span>{place.city}</span></div>
+            <div><strong>State / Region</strong><span>{place.region}</span></div>
+            <div><strong>Category</strong><span>{place.category}</span></div>
+            <div><strong>Source</strong><a href={place.source} target="_blank" rel="noreferrer">View source</a></div>
+          </div>
+        </section>
+        <section className="detail-panel">
+          <div className="panel-head"><UtensilsCrossed size={18} /> Nearby / local food ideas</div>
+          <p>Food information in RAAHI is shown as regional suggestions unless a specific restaurant is verified.</p>
+          <div className="mini-list">
+            {foods.filter((f) => f.city === place.city || f.region === place.region).slice(0, 3).map((f) => <span key={f.id}>{f.name}</span>)}
+            {!foods.some((f) => f.city === place.city || f.region === place.region) && <span>Browse TasteTrail for food suggestions.</span>}
+          </div>
+        </section>
+        <Chat place={place} />
+      </div>
+    </main>
+  );
+}
+
+function Plan({ records, update }: { records: RecordItem[]; update: (record: RecordItem) => void }) {
+  const navigate = useNavigate();
+  const [city, setCity] = useState(cities[0] || 'Ambala');
+  const [interest, setInterest] = useState('All');
+  const [hours, setHours] = useState(5);
+  const [budget, setBudget] = useState(1200);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function generateTrail() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch('/api/trails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city, interest, hours, budget }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not create trail.');
+      const record = { trail: data as Trail, progress: initialProgress(data as Trail) };
+      update(record);
+      navigate(`/trail/${record.trail.id}`);
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const latest = records.find((r) => !r.progress.finished);
+
+  return (
+    <main className="page-wrap warm-page">
+      <div className="container planner-layout">
+        <div className="planner-card">
+          <span className="eyebrow-text">TRIP PLANNER</span>
+          <h1>Build a local route in minutes.</h1>
+          <p>Choose a supported city, your available time, and an approximate budget. RAAHI will create a trail using verified destination data.</p>
+          <div className="field-grid">
+            <label><span>City</span><select value={city} onChange={(e) => setCity(e.target.value)}>{cities.map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label><span>Interest</span><select value={interest} onChange={(e) => setInterest(e.target.value)}><option>All</option>{[...new Set(places.map((p) => p.category))].map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label><span>Hours available</span><input type="number" min={2} max={12} value={hours} onChange={(e) => setHours(Number(e.target.value))} /></label>
+            <label><span>Budget (₹)</span><input type="number" min={0} value={budget} onChange={(e) => setBudget(Number(e.target.value))} /></label>
+          </div>
+          <button className="btn-primary planner-btn" onClick={generateTrail} disabled={busy}>{busy ? 'Generating…' : 'Generate Trail'}</button>
+          {error && <div className="error-box">{error}</div>}
+        </div>
+        <aside className="planner-card soft-card">
+          <span className="eyebrow-text">HOW IT WORKS</span>
+          <ol className="simple-steps">
+            <li>Generate a route from real curated places.</li>
+            <li>Open the stop in Google Maps.</li>
+            <li>Confirm arrival manually and answer the quiz.</li>
+            <li>Earn XP and complete the trail.</li>
+          </ol>
+          {latest && <Link to={`/trail/${latest.trail.id}`} className="resume-box">Resume: {latest.trail.title} <ArrowRight size={16} /></Link>}
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function TrailView({ records, update }: { records: RecordItem[]; update: (record: RecordItem) => void }) {
+  const { id } = useParams();
+  const record = records.find((r) => r.trail.id === id);
+  const navigate = useNavigate();
+  const [choice, setChoice] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState('');
+  if (!record) return <NotFound />;
+  const { trail, progress } = record;
+  const index = progress.completed.length;
+  const stop = trail.stops[index];
+  const currentPlace = stop ? getPlace(stop.placeId) : null;
+  const allPlaces = trail.stops.map((s) => getPlace(s.placeId)).filter(Boolean) as Place[];
+
+  function saveProgress(next: Progress) {
+    update({ trail, progress: next });
+  }
+  function arrive() {
+    saveProgress(markArrived(progress, index));
+    setFeedback('Arrival confirmed. You can answer the quiz now.');
+  }
+  function submit() {
+    if (choice === null) return setFeedback('Choose an option first.');
+    const result = completeStop(progress, trail, index, choice);
+    saveProgress(result.progress);
+    setFeedback(result.correct ? 'Correct! Next stop unlocked.' : result.reason || 'Try again.');
+  }
+  function restart() {
+    update({ trail, progress: initialProgress(trail) });
+    setChoice(null);
+    setFeedback('Trail restarted.');
+  }
+  if (progress.finished) {
+    return (
+      <main className="page-wrap light-page">
+        <div className="container finish-box">
+          <Trophy size={36} />
+          <h1>Trail completed!</h1>
+          <p>You completed <b>{trail.title}</b>. Your XP has been added only once.</p>
+          <div className="finish-actions">
+            <Link className="btn-primary" to="/passport">View Passport</Link>
+            <Link className="btn-secondary" to="/discover">Explore More Places</Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+  return (
+    <main className="page-wrap light-page">
+      <div className="container trail-layout">
+        <div className="trail-main-card">
+          <span className="eyebrow-pill small">ACTIVE TRAIL</span>
+          <h1>{trail.title}</h1>
+          <p>{trail.description}</p>
+          {trail.notice && <div className="notice-box">{trail.notice}</div>}
+          <div className="progress-line">Stop {index + 1} of {trail.stops.length}</div>
+          {currentPlace && (
+            <>
+              <ImageBlock place={currentPlace} className="trail-image" />
+              <h2>{currentPlace.name}</h2>
+              <p className="lead-copy">{stop.clue}</p>
+              <div className="detail-action-row">
+                <a className="btn-secondary" href={mapsUrl(currentPlace)} target="_blank" rel="noreferrer">Open in Maps</a>
+                <button className="btn-primary" onClick={arrive}>I have arrived</button>
+              </div>
+              <div className="quiz-card">
+                <h3>{stop.question}</h3>
+                <div className="options-list">
+                  {stop.options.map((opt, i) => (
+                    <label key={opt} className={choice === i ? 'option active' : 'option'}>
+                      <input type="radio" name="quiz" checked={choice === i} onChange={() => setChoice(i)} />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                <button className="btn-primary" onClick={submit}>Submit Answer</button>
+                {feedback && <div className="info-box">{feedback}</div>}
+              </div>
+            </>
+          )}
+        </div>
+        <aside className="trail-side-card">
+          <h3>Trail overview</h3>
+          <ol className="stop-list">
+            {allPlaces.map((p, i) => <li key={p.id} className={progress.completed.includes(i) ? 'done' : ''}>{p.name}</li>)}
+          </ol>
+          <a href={directionsUrl(allPlaces)} target="_blank" rel="noreferrer" className="btn-secondary full-width">Open directions</a>
+          <button className="btn-secondary full-width" onClick={restart}>Restart Trail</button>
+          <button className="btn-secondary full-width" onClick={() => navigate('/passport')}>Go to Passport</button>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function Passport({ records }: { records: RecordItem[] }) {
+  const { xp, complete, stops } = calculateXP(records);
+  const badges = [
+    { label: 'First Steps', unlocked: xp >= 50, note: 'Complete your first stop' },
+    { label: 'Mystery Explorer', unlocked: complete >= 1, note: 'Finish one full trail' },
+    { label: 'Heritage Hunter', unlocked: stops >= 4, note: 'Unlock four stops' },
+    { label: 'Local Legend', unlocked: xp >= 500, note: 'Reach 500 XP' },
+  ];
+  return (
+    <main className="page-wrap light-page">
+      <div className="container passport-page">
+        <div className="page-head compact-head">
+          <span className="eyebrow-pill small">Explorer Passport</span>
+          <h1>Your progress is simple and clear.</h1>
+          <p>No complicated panels — just your completed trails, XP and badges.</p>
+        </div>
+        <div className="passport-grid-simple">
+          <div className="stat-card"><Trophy size={22} /><strong>{xp}</strong><span>Total XP</span></div>
+          <div className="stat-card"><RouteIcon size={22} /><strong>{stops}</strong><span>Stops completed</span></div>
+          <div className="stat-card"><BadgeCheck size={22} /><strong>{complete}</strong><span>Trails finished</span></div>
+        </div>
+        <div className="passport-content-grid">
+          <section className="detail-panel">
+            <div className="panel-head"><BadgeCheck size={18} /> Badges</div>
+            <div className="badge-grid-simple">
+              {badges.map((badge) => <div key={badge.label} className={badge.unlocked ? 'badge-card on' : 'badge-card'}><strong>{badge.label}</strong><span>{badge.note}</span></div>)}
+            </div>
+          </section>
+          <section className="detail-panel">
+            <div className="panel-head"><Compass size={18} /> Recent trails</div>
+            {records.length ? (
+              <ul className="record-list">
+                {records.slice(0, 6).map((item) => <li key={item.trail.id}><b>{item.trail.title}</b><span>{item.progress.completed.length}/{item.trail.stops.length} stops completed</span></li>)}
+              </ul>
+            ) : <p className="chat-empty">You have not started a trail yet.</p>}
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function FoodCard({ item, saved, toggle }: { item: Food; saved: string[]; toggle: (id: string) => void }) {
+  return (
+    <article className="food-card-v2">
+      <div className="food-card-image">
+        {FOOD_IMAGES[item.id] ? <img src={FOOD_IMAGES[item.id]} alt={item.name} loading="lazy" /> : <div className="food-placeholder"><UtensilsCrossed size={28} /></div>}
+      </div>
+      <div className="food-card-body">
+        <span className="eyebrow-text">{item.region} · {item.diet}</span>
+        <h3>{item.name}</h3>
+        <p>{item.story}</p>
+        <small>Price and restaurant details are not verified unless linked.</small>
+        <div className="food-card-actions">
+          <a href={item.source} target="_blank" rel="noreferrer">Source</a>
+          <button onClick={() => toggle(item.id)}>{saved.includes(item.id) ? 'Saved ✓' : 'Save'}</button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FoodPage() {
+  const [query, setQuery] = useState('');
+  const [city, setCity] = useState('All');
+  const [saved, setSaved] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(FOOD_SAVE_STORAGE) || '[]'); } catch { return []; }
+  });
+  const list = foods.filter((item) => (city === 'All' || item.city === city) && `${item.name} ${item.story} ${item.region}`.toLowerCase().includes(query.toLowerCase()));
+  const toggle = (id: string) => setSaved((old) => {
+    const next = old.includes(id) ? old.filter((x) => x !== id) : [...old, id];
+    localStorage.setItem(FOOD_SAVE_STORAGE, JSON.stringify(next));
+    return next;
+  });
+  return (
+    <main className="page-wrap light-page">
+      <div className="container page-head">
+        <span className="eyebrow-pill small">TasteTrail</span>
+        <h1>Local food ideas that are easy to understand.</h1>
+        <p>These are regional dish suggestions, not guaranteed restaurant listings.</p>
+        <div className="filter-row">
+          <label className="search-box"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a dish" /></label>
+          <select value={city} onChange={(e) => setCity(e.target.value)}><option>All</option>{[...new Set(foods.map((f) => f.city))].map((c) => <option key={c}>{c}</option>)}</select>
+        </div>
+      </div>
+      <div className="container food-grid-v2">
+        {list.map((item) => <FoodCard key={item.id} item={item} saved={saved} toggle={toggle} />)}
+      </div>
+    </main>
+  );
+}
+
+function WalletPage() {
+  const [travelers, setTravelers] = useState(2);
+  const [transport, setTransport] = useState(500);
+  const [food, setFood] = useState(250);
+  const [parking, setParking] = useState(50);
+  const [extras, setExtras] = useState(150);
+  const [contingency, setContingency] = useState(10);
+  const [budgetLimit, setBudgetLimit] = useState(2500);
+  const estimate = calculateBudget({ travelers, transport, food, parking, extras, contingency });
+  const over = estimate.total > budgetLimit;
+
+  return (
+    <main className="page-wrap warm-page">
+      <div className="container wallet-layout-v2">
+        <section className="wallet-card-editor">
+          <span className="eyebrow-pill small">RAAHI Wallet</span>
+          <h1>Simple trip budgeting.</h1>
+          <p>Change any number and get an instant estimate. Unknown ticket prices are not silently assumed.</p>
+          <div className="wallet-fields-v2">
+            {[
+              ['Travelers', travelers, setTravelers],
+              ['Transport total ₹', transport, setTransport],
+              ['Food per person ₹', food, setFood],
+              ['Parking ₹', parking, setParking],
+              ['Extra activities per person ₹', extras, setExtras],
+              ['Contingency %', contingency, setContingency],
+              ['Budget limit ₹', budgetLimit, setBudgetLimit],
+            ].map(([label, value, setter]: any) => (
+              <label key={label}><span>{label}</span><input type="number" value={value} min={0} onChange={(e) => setter(Number(e.target.value))} /></label>
+            ))}
+          </div>
+        </section>
+        <aside className="wallet-card-report">
+          <Wallet size={28} />
+          <h2>Estimated total</h2>
+          <strong>₹{estimate.total.toLocaleString('en-IN')}</strong>
+          <div className="wallet-line"><span>Base</span><b>₹{estimate.base.toLocaleString('en-IN')}</b></div>
+          <div className="wallet-line"><span>Reserve</span><b>₹{estimate.reserve.toLocaleString('en-IN')}</b></div>
+          <div className="wallet-line"><span>Per person</span><b>₹{estimate.perPerson.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</b></div>
+          <div className={over ? 'budget-status bad' : 'budget-status'}>{over ? 'Over your planned budget' : 'Within your planned budget'}</div>
+          <p className="wallet-note">Ticket fees may still need to be checked separately at official sources.</p>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+function NotFound() {
+  return (
+    <main className="page-wrap light-page">
+      <div className="container empty-box">
+        <h1>Page not found</h1>
+        <p>The page you’re looking for does not exist.</p>
+        <Link to="/" className="btn-primary">Go home</Link>
+      </div>
+    </main>
+  );
+}
+
+function App() {
+  const { records, update } = useRecords();
+  return (
+    <BrowserRouter>
+      <Layout records={records}>
+        <Routes>
+          <Route path="/" element={<Home records={records} />} />
+          <Route path="/discover" element={<Discover />} />
+          <Route path="/places/:slug" element={<PlaceDetail />} />
+          <Route path="/plan" element={<Plan records={records} update={update} />} />
+          <Route path="/trail/:id" element={<TrailView records={records} update={update} />} />
+          <Route path="/passport" element={<Passport records={records} />} />
+          <Route path="/food" element={<FoodPage />} />
+          <Route path="/wallet" element={<WalletPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Layout>
+    </BrowserRouter>
+  );
+}
+
+createRoot(document.getElementById('root')!).render(<App />);

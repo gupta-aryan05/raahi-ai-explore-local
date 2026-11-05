@@ -53,3 +53,14 @@ For production (after building): `NODE_ENV=production npm start` runs the API an
 ## Deployment
 
 Build and deploy the **Node server** and the compiled **dist/** folder together to a host supporting Node 20+. Static-only hosting will not serve the Gemini endpoints; offline trail generation remains possible, but Ask the Place will require the backend.
+
+
+## RAAHI 3.0 — first upgrade increment
+
+- All-India data foundation: curated Agra and Jaipur stops alongside the original Haryana data, with source links. The mystery trail engine now supports all curated cities.
+- New `/wallet` planning allowance calculator, with explicit unknown ticket charges and automated arithmetic tests.
+- New `/food` regional dish guide with saved food ideas, no fabricated restaurant listings.
+- Cinematic green/gold design refresh and homepage shortcut dock.
+- All unrelated stock place thumbnails were replaced with branded placeholders until a correctly identified and reusable photo can be sourced. The homepage hero uses a decorative Unsplash image, not a site-specific destination card.
+- The original trail/passport storage key `raahi-v1-records` remains unchanged.
+- This is **not yet the complete all-states 3.0 release**. Still required: authenticated destination imagery, deeper multi-state content, trip-aware food stops, adaptive replanning, and end-to-end browser testing.

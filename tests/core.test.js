@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {places} from '../shared/places.js';
 import {pickPlaces,makeOfflineTrail,initialProgress,markArrived,completeStop,calculateXP,validateAIContent,mapsUrl} from '../shared/trails.js';
 const options={city:'Ambala',interest:'History',hours:4,budget:1000};
-test('catalog contains twelve traced destinations',()=>{assert.ok(places.length>=10);assert.ok(places.every(p=>p.source.startsWith('https://haryanatourism.gov.in/')&&p.options.length===4));});
+test('catalog contains sourced destinations with working quizzes',()=>{assert.ok(places.length>=16);assert.ok(places.every(p=>p.source.startsWith('https://')&&p.options.length===4));});
 test('filter stays within requested city and has 2-4 stops',()=>{const p=pickPlaces(options);assert.ok(p.length>=2&&p.length<=4);assert.ok(p.every(x=>x.city==='Ambala'));});
 test('reject invalid time, budget and unsupported city',()=>{assert.throws(()=>pickPlaces({...options,hours:1}));assert.throws(()=>pickPlaces({...options,city:'Delhi'}));assert.throws(()=>pickPlaces({...options,budget:-10}));});
 test('real quiz flow is sequential and requires arrival',()=>{let t=makeOfflineTrail(options);let p=initialProgress(t);let first=t.stops[0];assert.equal(completeStop(p,t,0,first.answer).correct,false);p=markArrived(p,0);assert.equal(completeStop(p,t,0,(first.answer+1)%4).correct,false);p=completeStop(p,t,0,first.answer).progress;assert.equal(p.completed.length,1);assert.equal(completeStop(p,t,0,first.answer).correct,false);});
